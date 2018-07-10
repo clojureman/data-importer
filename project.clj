@@ -15,6 +15,8 @@
                                                    com.amazonaws/amazon-kinesis-client]]
                  [com.amazonaws/aws-java-sdk-core "1.11.361"]
                  [com.amazonaws/aws-java-sdk-sqs "1.11.361"]
-                 [com.amazonaws/aws-java-sdk-dynamodb "1.11.361"]]
+                 [com.amazonaws/aws-java-sdk-dynamodb "1.11.361"]
+                 [aero "1.1.3"]
+                 [com.amazonaws/aws-java-sdk-ssm "1.11.361"]]
   :uberjar-exclusions [#".*-model\.json" #".*-intermediate\.json"]
   :aot :all)

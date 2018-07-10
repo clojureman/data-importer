@@ -1,4 +1,4 @@
-(ns data-importer.core
+0(ns data-importer.core
   (:gen-class
    :implements [com.amazonaws.services.lambda.runtime.RequestStreamHandler])
   (:require [amazonica.aws.dynamodbv2 :as ddb]
@@ -9,7 +9,11 @@
             [clojure.string :as s]
             [com.rpl.specter :refer :all]
            ; [amazonica.aws.sns :as sns]
-            [clojure.java.jdbc :as j]))
+            [clojure.java.jdbc :as j]
+            [aero.core :as ac]
+            [amazonica.aws.simplesystemsmanagement :as ssm])
+  (:import [com.amazonaws.services.simplesystemsmanagement AWSSimpleSystemsManagementClientBuilder]
+           [com.amazonaws.services.simplesystemsmanagement.model GetParametersRequest]))
 
 (defn mk-req-handler
   "Makes a request handler"
@@ -24,11 +28,22 @@
         res w)
       (.flush w))))
 
+(defn get-parameters-by-hash [h]
+  (->> (ssm/describe-parameters {:parameter-filters [{:key h}]})
+      :parameters
+      (map :name)
+      vec))
+
+(def params (delay ((ssm/get-parameters {:names (get-parameters-by-hash :tag:db)}) :parameters)))
+
+(defn get-param [key]
+  ((first (filter #(= key (% :name)) @params)) :value))
+
 (def db-spec {:dbtype "mssql"
-              :host ""
-              :dbname "Nord"
-              :user "W19807Read"
-              :password ""})
+              :host (get-param "lag4host")
+              :dbname (get-param "lag4db")
+              :user (get-param "lag4user")
+              :password (get-param "lag4pw")})
 
 ;; Just here to remind which tables are in play
 (def tables ["vurderingsejendom"
