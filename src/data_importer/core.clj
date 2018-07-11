@@ -28,22 +28,22 @@
         res w)
       (.flush w))))
 
-(defn get-parameters-by-hash [h]
-  (->> (ssm/describe-parameters {:parameter-filters [{:key h}]})
+(defn get-parameters-by-tag [t]
+  (->> (ssm/describe-parameters {:parameter-filters [{:key t}]})
       :parameters
       (map :name)
       vec))
 
-(def params (delay ((ssm/get-parameters {:names (get-parameters-by-hash :tag:db)}) :parameters)))
+(def params (delay ((ssm/get-parameters {:names (get-parameters-by-tag :tag:db)}) :parameters)))
 
 (defn get-param [key]
   ((first (filter #(= key (% :name)) @params)) :value))
 
-(def db-spec {:dbtype "mssql"
-              :host (get-param "lag4host")
-              :dbname (get-param "lag4db")
-              :user (get-param "lag4user")
-              :password (get-param "lag4pw")})
+(comment (def db-spec {:dbtype "mssql"
+               :host (get-param "lag4host")
+               :dbname (get-param "lag4db")
+               :user (get-param "lag4user")
+               :password (get-param "lag4pw")}))
 
 ;; Just here to remind which tables are in play
 (def tables ["vurderingsejendom"
@@ -88,10 +88,8 @@
   (first (filter #(not (nil? %)) (set (map #(get-in % [:put-request :item id ]) l)))))
 
 (defn insert-ejd [vurid]
-  (prn "VURID" vurid)
   (let [vur (map #(hash-map :put-request (hash-map :item  (assoc (update-map % inst-to-long) :table "vurderingsejendom" :uuid (str (uuid/v1))))) (j/query db-spec ["select * from vurderingsejendom  where vurderingsejendom_id_ice = ?" vurid]))
-        _ (prn "VUR" vur)
-       ; adresse (map #(hash-map :put-request (hash-map :item (assoc (update-map % inst-to-long) :table "adresse" :vurderingsejendom_id_ice vurid :uuid (str (uuid/v1))))) (j/query db-spec ["select * from adresse a1 where adresse_id_ice = ? and db_indsat = (select max(db_indsat) from adresse a2 where a1.virkning_fra = a2.virkning_fra and a2.adresse_id_ice = ?)" (get-id :adresse_id_ice vur) (get-id :adresse_id_ice vur)]))
+                                        ; adresse (map #(hash-map :put-request (hash-map :item (assoc (update-map % inst-to-long) :table "adresse" :vurderingsejendom_id_ice vurid :uuid (str (uuid/v1))))) (j/query db-spec ["select * from adresse a1 where adresse_id_ice = ? and db_indsat = (select max(db_indsat) from adresse a2 where a1.virkning_fra = a2.virkning_fra and a2.adresse_id_ice = ?)" (get-id :adresse_id_ice vur) (get-id :adresse_id_ice vur)]))
         adresse (map #(hash-map :put-request (hash-map :item (assoc (update-map % inst-to-long) :table "adresse" :vurderingsejendom_id_ice vurid :uuid (str (uuid/v1))))) (j/query db-spec ["select * from adresse where adresse_id_ice = ?" (get-id :adresse_id_ice vur)]))
         bfe (map #(hash-map :put-request (hash-map :item (assoc (update-map % inst-to-long) :table "bfe" :uuid (str (uuid/v1))))) (j/query db-spec ["select * from bfe where vurderingsejendom_id_ice = ?" vurid]))
         sfe (map #(hash-map :put-request (hash-map :item (assoc (update-map % inst-to-long) :table "sfe" :vurderingsejendom_id_ice vurid :uuid (str (uuid/v1))))) (j/query db-spec ["select * from sfe where bfe_id_ice = ?" (get-id :bfe_id_ice bfe)]))
@@ -155,16 +153,16 @@
         sitems (loop [i items s []]
                  (if (empty? i)
                    s
-                   (recur (drop-last 25 i) (conj s (take-last 25 i)))))
-        res (map #(ddb/batch-write-item :return-consumed-capacity "TOTAL"
-                                         :return-item-collection-metrics "SIZE"
-                                         :request-items {"vurejendomme" (vec %)})
-                  sitems)]
-    (count res)))
+                   (recur (drop-last 25 i) (conj s (take-last 25 i)))))]
+    ;(prn "ITEMS" sitems)
+    ;(count res)
+    (mapv #(ddb/batch-write-item :return-consumed-capacity "TOTAL"
+                                 :return-item-collection-metrics "SIZE"
+                                 :request-items {"vurejendomme" (vec %)})
+                  sitems)))
 
 (defn import-data [data]
-  (prn "DATA" data)
-  (map #(insert-ejd (Integer/parseInt (:body %))) (:Records data)))
+  (doall (pmap #(insert-ejd (Integer/parseInt (:body %))) (:Records data))))
 
 
 (def -handleRequest (mk-req-handler import-data))

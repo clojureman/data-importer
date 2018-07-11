@@ -111,6 +111,8 @@
                       v))))
 
 (defn assemble [data]
-  (assemble' data (normalize-schema schema) {}))
+  (prn "IN" data)
+  (let [res  (encode (assemble' (hent-ejendom (data :vurid) (data :virknings-tid)) (normalize-schema schema) {}))]
+    res))
 
 (def -handleRequest (mk-req-handler assemble))

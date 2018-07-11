@@ -9,6 +9,7 @@
             [clojure.string :as s]
             [com.rpl.specter :refer :all]
             [amazonica.aws.sqs :as sqs]
+            [amazonica.aws.simplesystemsmanagement :as ssm]
             [clojure.java.jdbc :as j]))
 
 (defn mk-req-handler
@@ -24,18 +25,27 @@
         res w)
       (.flush w))))
 
-(def db-spec {:dbtype "mssql"
-              :host ""
-              :dbname "Nord"
-              :user "W19807Read"
-              :password ""})
+(defn get-parameters-by-tag [t]
+  (->> (ssm/describe-parameters {:parameter-filters [{:key t}]})
+      :parameters
+      (map :name)
+      vec))
 
-(defn get-queue []
-  (sqs/find-queue "import-queue-iceeog-dev"))
+(def params (delay ((ssm/get-parameters {:names (get-parameters-by-tag :tag:db)}) :parameters)))
 
-(defn start []
-  (let [vurids (j/query db-spec ["select distinct(vurderingsejendom_id_ice) from vurderingsejendom"])
-        queue (get-queue)]
-    (map #(sqs/send-message queue (:vurderingsejendom %)) vurids)))
+(defn get-param [key]
+  ((first (filter #(= key (% :name)) @params)) :value))
+
+(comment (def db-spec {:dbtype "mssql"
+               :host (get-param "lag4host")
+               :dbname (get-param "lag4db")
+               :user (get-param "lag4user")
+               :password (get-param "lag4pw")}))
+
+(def queue (delay (sqs/find-queue "import-queue-iceeog-dev")))
+
+(defn start [in]
+  (let [vurids (j/query db-spec ["select distinct(vurderingsejendom_id_ice) from vurderingsejendom"])]
+    (doall (pmap #(sqs/send-message @queue (:vurderingsejendom_id_ice %)) vurids))))
 
 (def -handleRequest (mk-req-handler start))
