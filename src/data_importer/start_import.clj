@@ -1,14 +1,10 @@
 (ns data-importer.start-import
   (:gen-class
    :implements [com.amazonaws.services.lambda.runtime.RequestStreamHandler])
-  (:require [amazonica.aws.dynamodbv2 :as ddb]
-            [clojure.java.io :as io]
+  (:require [clojure.java.io :as io]
             [cheshire.core :refer :all]
-            [clj-uuid :as uuid]
-            [clj-time.coerce :as c]
-            [clojure.string :as s]
-            [com.rpl.specter :refer :all]
             [amazonica.aws.sqs :as sqs]
+            [data-importer.core :as c]
             [amazonica.aws.simplesystemsmanagement :as ssm]
             [clojure.java.jdbc :as j]))
 
@@ -45,7 +41,7 @@
 (def queue (delay (sqs/find-queue "import-queue-iceeog-dev")))
 
 (defn start [in]
-  (let [vurids (j/query db-spec ["select distinct(vurderingsejendom_id_ice) from vurderingsejendom"])]
+  (let [vurids (j/query c/db-spec ["select distinct(vurderingsejendom_id_ice) from vurderingsejendom"])]
     (doall (pmap #(sqs/send-message @queue (:vurderingsejendom_id_ice %)) vurids))))
 
 (def -handleRequest (mk-req-handler start))
