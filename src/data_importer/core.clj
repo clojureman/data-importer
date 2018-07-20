@@ -37,7 +37,7 @@
                   :user (get-param "lag4user" false)
                   :password (get-param "lag4pw" false)
                   :min-pool-size 10
-                  :max-pool-size 400
+                  :max-pool-size 40
                   :subname (str "//" (get-param "lag4host" false)  ";databaseName="  (get-param "lag4db" false))}))
 
 (def db-spec
