@@ -44,53 +44,23 @@
   (delay
    (pool/make-datasource-spec @spec)))
 
-;; Just here to remind which tables are in play
-(def tables ["vurderingsejendom"
-             "adresse"
-             "bfe"
-             "bfg"
-             "bygning"
-             "bygning_flag"
-             "ejerlejlighed"
-             "enhed"
-             "enhed_flag"
-             "etage"
-             "etage_flag"
-             "jordstykke"
-             "sfe"
-             "tekniskanlaeg"
-             "afstand_hoejspaending"
-             "afstand_jernbane"
-             "afstand_kystlinie"
-             "afstand_samletskov"
-             "afstand_skov"
-             "afstand_soe"
-             "afstand_togstation"
-             "afstand_vandloeb"
-             "afstand_vej"
-             "afstand_vindmoelle"
-             "plandata"
-             "strandbeskyttelse"
-             "klitfredning"
-             "majoratskov"
-             "stormfald"
-             "fredskov"])
-
 (defn update-map [m f]
   (reduce-kv (fn [m k v]
                (assoc m k (f v))) {} m))
 
 (defn inst-to-long [val]
-  (if (= java.sql.Timestamp (type val)) (c/to-long val) val))
+  (if (or (= java.sql.Date (type val))  (= java.sql.Timestamp (type val))) (c/to-long val) val))
 
 (defn get-id [id l]
   (first (filter #(not (nil? %)) (set (map #(get-in % [:put-request :item id ]) l)))))
 
 (defn insert-ejd [vurid]
-  (let [vur (map #(hash-map :put-request (hash-map :item  (assoc (update-map % inst-to-long) :table "vurderingsejendom" :uuid (str (uuid/v1))))) (j/query @db-spec ["select * from vurderingsejendom  where vurderingsejendom_id_ice = ?" vurid]))
+  (let [vur (map #(hash-map :put-request (hash-map :item  (assoc (update-map % inst-to-long) :table "vurderingsejendom" :uuid (str (uuid/v1))))) (j/query @db-spec ["select * from vurderingsejendom where vurderingsejendom_id_ice = ?" vurid]))
                                         ; adresse (map #(hash-map :put-request (hash-map :item (assoc (update-map % inst-to-long) :table "adresse" :vurderingsejendom_id_ice vurid :uuid (str (uuid/v1))))) (j/query @db-spec ["select * from adresse a1 where adresse_id_ice = ? and db_indsat = (select max(db_indsat) from adresse a2 where a1.virkning_fra = a2.virkning_fra and a2.adresse_id_ice = ?)" (get-id :adresse_id_ice vur) (get-id :adresse_id_ice vur)]))
         adresse (map #(hash-map :put-request (hash-map :item (assoc (update-map % inst-to-long) :table "adresse" :vurderingsejendom_id_ice vurid :uuid (str (uuid/v1))))) (j/query @db-spec ["select * from adresse where adresse_id_ice = ?" (get-id :adresse_id_ice vur)]))
         bfe (map #(hash-map :put-request (hash-map :item (assoc (update-map % inst-to-long) :table "bfe" :uuid (str (uuid/v1))))) (j/query @db-spec ["select * from bfe where vurderingsejendom_id_ice = ?" vurid]))
+        salg (map #(hash-map :put-request (hash-map :item (assoc (update-map % inst-to-long) :table "salg" :uuid (str (uuid/v1))))) (j/query @db-spec ["select * from salg where vurderingsejendom_id_ice = ?" vurid]))
+        salg-flag (map #(hash-map :put-request (hash-map :item (assoc (update-map % inst-to-long) :table "salg_flag" :vurderingsejendom_id_ice vurid :uuid (str (uuid/v1))))) (j/query @db-spec ["select * from salg_flag where salg_id_ice = ?" (get-id :salg_id_ice salg)]))
         sfe (map #(hash-map :put-request (hash-map :item (assoc (update-map % inst-to-long) :table "sfe" :vurderingsejendom_id_ice vurid :uuid (str (uuid/v1))))) (j/query @db-spec ["select * from sfe where bfe_id_ice = ?" (get-id :bfe_id_ice bfe)]))
         bfg (map #(hash-map :put-request (hash-map :item (assoc (update-map % inst-to-long) :table "bfg" :vurderingsejendom_id_ice vurid :uuid (str (uuid/v1))))) (j/query @db-spec ["select * from bfg where bfe_id_ice = ?" (get-id :bfe_id_ice bfe)]))
         ejerlejlighed (map #(hash-map :put-request (hash-map :item (assoc (update-map % inst-to-long) :table "ejerlejlighed" :vurderingsejendom_id_ice vurid :uuid (str (uuid/v1))))) (j/query @db-spec ["select * from ejerlejlighed where bfe_id_ice = ?" (get-id :bfe_id_ice bfe)]))
@@ -148,7 +118,7 @@
                        (j/query @db-spec ["select distinct(p.stormfald_id_ice) dummy,p.* from stormfald p, jordstykke j where p.jordstykke_id_ice = j.jordstykke_id_ice and j.sfe_id_ice = ?" (get-id :sfe_id_ice sfe)]))
         fredskov (map #(hash-map :put-request (hash-map :item (assoc (update-map % inst-to-long) :table "fredskov" :vurderingsejendom_id_ice vurid :uuid (str (uuid/v1)))))
                       (j/query @db-spec ["select distinct(p.fredskov_id_ice) dummy,p.* from fredskov p, jordstykke j where p.jordstykke_id_ice = j.jordstykke_id_ice and j.sfe_id_ice = ?" (get-id :sfe_id_ice sfe)]))
-        items (vec (concat vur adresse bfe sfe bfg ejerlejlighed bygning etage enhed jordstykke tekanl byg-flag etage-flag enhed-flag afs-hoej afs-jern afs-kyst afs-samskov afs-skov afs-soe afs-tog afs-vand afs-vej afs-vind plandata strandbeskyttelse klitfredning majoratskov stormfald fredskov))
+        items (vec (concat vur adresse bfe sfe bfg ejerlejlighed bygning etage enhed jordstykke tekanl byg-flag etage-flag enhed-flag afs-hoej afs-jern afs-kyst afs-samskov afs-skov afs-soe afs-tog afs-vand afs-vej afs-vind plandata strandbeskyttelse klitfredning majoratskov stormfald fredskov salg salg-flag))
         sitems (loop [i items s []]
                  (if (empty? i)
                    s
@@ -165,3 +135,9 @@
 
 
 (def -handleRequest (mk-req-handler import-data))
+
+;;(ddb/scan cred :tablename "vurejendomme" :projection-expression "vurderingsejendom_id_ice, #u" :expression-attribute-names {"#u" "uuid"})
+
+;;(ddb/delete-item cred :tablename "vurejendomme" :key {:vurderingsejendom_id_ice 18570513 :uuid "b1305050-850e-11e8-b02f-2a61c6c19b33"})
+
+;;(pmap #(ddb/delete-item cred :tablename "vurejendomme" :key {:vurderingsejendom_id_ice (:vurderingsejendom_id_ice %) :uuid (:uuid %)}) (:items x))

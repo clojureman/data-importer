@@ -8,6 +8,7 @@
             [clj-time.coerce :as c]
             [clojure.string :as s]
             [com.rpl.specter :refer :all]
+            [data-importer.schema :as schema]
            ; [amazonica.aws.sns :as sns]
             [clojure.java.jdbc :as j]))
 
@@ -23,43 +24,6 @@
            (fn [res w] (.write w (prn-str res))))
         res w)
       (.flush w))))
-
-
-(def schema
-  {:vurderingsejendom
-   {:adresse       {:afstand_skov []
-                    :afstand_soe  []
-                    :afstand_hoejspaending []
-                    :afstand_jernbane []
-                    :afstand_kystlinie []
-                    :afstand_samletskov []
-                    :afstand_togstation []
-                    :afstand_vandloeb []
-                    :afstand_vej []
-                    :afstand_vindmoelle []}
-    :bfe {:sfe [
-                {:jordstykke [
-                              {:tekniskanlaeg []
-                               :plandata []
-                               :strandbeskyttelse []
-                               :klitfredning []
-                               :majoratskov []
-                               :stormfald []
-                               :fredskov []
-                               :bygning [
-                                         {:tekniskanlaeg []
-                                          :etage [
-                                                  {:enhed []}]}]}]}]
-          :bfg [
-                {:bygning [
-                           {:tekniskanlaeg []
-                            :etage [
-                                    {:enhed []}]}]
-                 :tekniskanlaeg []}]
-          :ejerlejlighed [
-                          {:bygning []
-                           :tekniskanlaeg []
-                           :enhed []}]}}})
 
 (def kf (memoize #(keyword (str % "_id_ice"))))
 
@@ -110,9 +74,15 @@
                                (when (seq xs) {t xs})))
                       v))))
 
+(defn get-schema [s]
+  (cond
+    (= s "schema1") schema/schema1
+    (= s "schema2") schema/schema2
+    (= s "schema3") schema/schema3))
+
 (defn assemble [data]
   (prn "IN" data)
-  (let [res  (encode (assemble' (hent-ejendom (data :vurid) (data :virknings-tid)) (normalize-schema schema) {}))]
+  (let [res  (encode (assemble' (hent-ejendom (data :vurid) (data :virknings-tid)) (normalize-schema (get-schema (:schema data))) {}))]
     res))
 
 (def -handleRequest (mk-req-handler assemble))
